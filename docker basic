@@ -1,1 +1,38 @@
 
+docker
+php
+nginx
+=====
+docker语法:
+  docker [OPTIONS] COMMAND
+docker COMMAND语法:
+  因于COMMAND有很多,因此还要看具体命令的帮助文件,如docker build --help
+docker命令分为两种,一种是Management命令,一种是Action命令, 管理命令用来指定被管理的对象,动作命令用来指定在该对象上要执行的具体动作;而我们见到最多的docker run可以看成是docker container run,docker build可以看成是docker builder build或docker image build,所以可以看的出来不同的对象可能拥有相同的动作,其实按照它的逻辑想一下都是合逻辑的.之所以我们平时可以见到许多省略object的形式,是因为对于相应动作来说,object是唯一的,不会有歧义,如docker run,在docker中只有容器能被运行,所以默认的就会预处理为docker container run,按照我的逻辑特殊一点的就是刚刚提到的docker build, 因为builder对象和image对象都有build动作,但二者的行为是一致的,所以在预处理的时候默认为docker builder build或docker image build都没问题.
+  *.个人感觉help中Magement Command的命名并不恰当,因为它指定的是被管理的对象, 而非命令,因此感觉将语法改为docker [OPTIONS] [OBJETCT] COMMAND, 将Management Command改为Object更好一些.
+=====
+下面主要是以"阶段+目的"为主线来说一下, 即"哪个阶段-你都能做什么-相应的应要使用什么命令":
+第一阶段: 构建一个image:
+**a.构建过程中能做什么(即docker build后都能跟什么参数,只讲三个最常用的参数):
+******指定Dockerfile文件位置: -f path/of/Dockerfile
+******指定构建好的image标签: -t repo/tag_name:version  //可以指定多个-t,最常用的就是最后一次构建时除了明确version为某个点分数字外, 再打上一个为latest的version
+******指定上下文目录位置: path/of/context
+****例子:
+    docker build .   //此时Dockerfile从当前目录取, image's tag为随机串(sha256)
+    docker build -t repo1/hello:1.0 .  //这种应该是最常用的了, 即最通常的思维是以当前目录为上下文目录,并且将Dockerfile文件也放在这里, 最后给生成的image命个名
+    *.其它的例子就不写了,自己排列组合即可,写多也乱.
+**b.得到了image后你能做什么(即docker image后都可以有什么动作,当然动作也可以有参数):
+******查看我当前都有哪些images: docker image ls
+******查看某个image的构建历史: docker image history image_name  //想到的使用场景是可以看到每个Dockerfile中的每个指令层或叫生成的子image都多大,对于优化应该有用,并不是所有指令都会增加大小,如WORKDIR
+******删除某个image:docker image rm image_name  //删除所有images,或以使用docker image ls | awk 'NR>1 {print $3}' | xargs docker image rm
+******查看某个image的详细信息: docker image inspect image_name  //关于image很多详细的属性
+******将某个/些image[s]打包并存储到本地: docker image save -o saved_image.tar image1[ image2...]
+******与存储到本地相对应的从本地加载: docker image load -i saved_image.tar  //需要注意直接加载后往往在docker image ls中看不到,此时可以使用docker image ls -a看到, 如果想从docker image ls中看到的话,需要使用docker tag给该image打个标签
+******给image打标签: docker image tag 源id 标签名  //说是标签名,但docker image ls看到的相应列标题为REPOSITORY,这一点感觉对初学者非常不友好,也就是说对-t repo/name:version, repo/name会理解为image名称,version理解为版本号,但到了docker image ls中名词解释全变了,repo/name为REPOSITORY值,而version为TAG列的值. 这里我写成repo/name在pull和push的时候是有影响的,此时repo/name会被认为是repo目录下的name.如果我docker image push bbq:latest,则推送的完整地址是:docker.io/library/bbq,如果我docker image push XYZ/bbq:later,则推送的完整地址是: docker.io/XYZ/bbq. 在推送的时候你才能理解为啥docker image ls时会将-t XYZ/abc:latest中的XYZ/abc的表头写为REPOSITORY.从输出情况看,如果只是abc这种形式,默认是在library下,即library/abc
+        *.如果是已经有标签名的,你还可以给该image一个新别名,此时docker image ls中会多出一条记录  //如docker image XYZ/abc:latest bbq:first
+******从远程库拉取image: docker image pull tag_name[:version]  //tag_name有两种写法, abc,此时从默认的library/目录下找,XYZ/abc,此时从XYZ目录下找
+******向远程库推送image: docker image push tag_name[:version]  //不加:version则默认为:latest
+        *.远程推送要注意,1.要先登录:docker login -u username,执行后会让你输密码,如果密码对,提示登录成功, 假设我的用户名为shenhuxi;
+                       2.你最终推送的image标签格式应该是: 你的用户名/任意名称:任意标签, 如:你在构建的时候用的-t是XYZ/abc:latest,但你推送的时候不能是docker push XYZ/abc:latest,因为如果你这样写实际是将abc:latest推送到docker.io/XYZ/这个目录下, 而你目前只有权限向docker.io/shenhuxi/这个目录里推送文件,所以在推送前, 你要使用docker image tag XYZ/abc:latest shenhuxi/abc:latest修改一下要推送image的标签; 有时候我们在docker pull的时候只写了一个名字,如mysql,此时是从docker.io/library/目录下拉取,也就是说在拉取前会将mysql预处理成library/mysql:latest
+******删除没有任何container引用的images: docker image prune -a //https://docs.docker.com/config/pruning/ 里面有对各种对象的prune的用法; https://stackoverflow.com/questions/45142528/what-is-a-dangling-image-and-what-is-an-unused-image解释什么叫dangling images,以及如何查找dangling images
+        *.也就是说如果docker container ls -a 或docker container ps -a里面存在的containers,不管该容器状态是什么样,只要该容器引用的image就不会在docker image prune -a中被删掉,并且-a还会同时删掉下一条说的dangling images.
+        *.而不加-a参数的docker image prune则删的是基本上是docker image ls时,REPOSITORY列显示为<none>的也没有子image引用它们的那些images,它们存在的意义基本上就是为了缓存,使用docker images -f dangling=true可以查看当前系统上的dangling images
