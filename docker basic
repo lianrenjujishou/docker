@@ -36,3 +36,24 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
 ******删除没有任何container引用的images: docker image prune -a //https://docs.docker.com/config/pruning/ 里面有对各种对象的prune的用法; https://stackoverflow.com/questions/45142528/what-is-a-dangling-image-and-what-is-an-unused-image解释什么叫dangling images,以及如何查找dangling images
         *.也就是说如果docker container ls -a 或docker container ps -a里面存在的containers,不管该容器状态是什么样,只要该容器引用的image就不会在docker image prune -a中被删掉,并且-a还会同时删掉下一条说的dangling images.
         *.而不加-a参数的docker image prune则删的是基本上是docker image ls时,REPOSITORY列显示为<none>的也没有子image引用它们的那些images,它们存在的意义基本上就是为了缓存,使用docker images -f dangling=true可以查看当前系统上的dangling images
+        *prune -a强调的是只要是没有container使用的images都会被删掉; 而无参prune引调的是没有被container使用的并且没有标签的;二者都不能被子image引用.
+******从tar文件导入文件系统image:docker image import x.tar  //这个tar文件可以是docker image save -o x.tar保存的, 也可以是docker container export x.tar
+        *.需要注意的是import的image和load加载的image是有区别的, load的image和没导出之前的用法一样,而load的image只是讲文件系统上的文件导过来了,最明显的特征就是CMD,ENTRYPOINT入口点命令没导进来, 运行时必须指定要执行的命令.
+        *.至于用处,想到的一种情景是你构建好的imageA中已经将某个任务的环境构建好了,如python环境, 这样当你把imageA的文件系统导进来后,使用docker image tag给该image打个标签,然后再新建Dockerfile,此时该Dockerfile的FROM就是刚刚打的标签,下面直接就可以使用RUN指令执行python脚本了.
+        *.对比docker container commit container_id new_image_tag 它根据当前正在运行的容器contain_id,创建一个新的image,特点就是不光保存了文件系统的改变,Dockerfile指令内容也没变(https://docs.docker.com/engine/reference/commandline/commit/ 还可以通过使用--change选项改变新image的一些Dockerfile指令,详见链接),如,ENTRANCE,CMD(基image运行时未指定命令时,新生成的image中CMD不变, 但如果基image运行时指定了命令,则新命令的CMD值为基image在运行时自定义的那个命令,这个测试可以让基image的Dockerfile的CMD值为tail -f /dev/null,然后build得到image后,执行docker run 基image sleep 20,此处注意我是在docker run时指定的入口命令,会覆盖掉Dockerfile中的CMD,此时快速打开第二个窗口执行docker container commit 基image容器id new_tag,最后运行这个新产生的image,看看等20秒是否会自动退出,如果会退出,则说明新产生的image中CMD使用的是运行基image时现定义的那个,而非基image的Dockerfile中CMD的默认值 )
+=====
+第二阶段,根据image运行得到容器
+**a.怎么运行image得到容器(docker run,只讲常用的几个参数)
+******后台运行: -d   //前提是你的CMD或docker run时指定了阻塞前端进行的命令,如tail -f /dev/null,否则加上-d也没用
+******前台前互: -it  //后面命令用/bin/bash,这是前端交互最常见的一种做法,即docker run -it image_id /bin/bash
+       *.-it其实是两个单独的命令,-i和-t, interactive和tty的简写
+       *.docker run 后面使用/bin/bash 前面参数使用-di或-dt也可以导致后台运行,现在弄不明白,-i和-t到底起什么作用.
+******退出容器后自动删除建立的容器: -rm    //这个可以使用docker container ps -a看一下不加该参数退出前后有啥变化,加了该参数,退出前后有啥变化   
+****例子:
+       docker run -it image_id /bin/bash     //可以直接在当前tty中操作docker容器, exit退出
+       docker run -d image_id tail -f /dev/null   //后台运行容器,因为有tail在这一直阻塞着进程,所以容器一直处于运行中,cnblogs中也说过,容器说白了就是一个进程, 你没有阻塞进程的语句,它执行完就退出了是完全正常的逻辑
+       docker run -dit image_id /bin/bash 
+        *.进入后台运行的容器: docker container exec -it 容器id /bin/bash
+                           docker container attach 容器id    //前提是docker run时,后面的命令是/bin/bash一类的shell,这样做我猜测attach到的是容器中最前端的那个进程,这个进程只有是shell我们才能和它交互
+        **.docker run后面的命令与CMD和ENTRYPOINT的关系:单独总结
+**b.有了容器后我们都能对它干什么
