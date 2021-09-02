@@ -11,6 +11,7 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
   *.个人感觉help中Magement Command的命名并不恰当,因为它指定的是被管理的对象, 而非命令,因此感觉将语法改为docker [OPTIONS] [OBJETCT] COMMAND, 将Management Command改为Object更好一些.
 =====
 下面主要是以"阶段+目的"为主线来说一下, 即"哪个阶段-你都能做什么-相应的应要使用什么命令":
+下面的命令都是help文件中的信息,不是太详细, 最好再参考一下: https://docs.docker.com/engine/reference/commandline/命令
 第一阶段: 构建一个image:
 **a.构建过程中能做什么(即docker build后都能跟什么参数,只讲三个最常用的参数):
 ******指定Dockerfile文件位置: -f path/of/Dockerfile
@@ -45,6 +46,7 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
 第二阶段,根据image运行得到容器
 **a.怎么运行image得到容器(docker run,只讲常用的几个参数)
 ******后台运行: -d   //前提是你的CMD或docker run时指定了阻塞前端进行的命令,如tail -f /dev/null,否则加上-d也没用
+******端口映射: -p, -P  //-p 主机端口:docker端口, 可以指定多个-p; -P是自动将Dockerfile中的EXPOSE指定的端口映射为主机的随机端口,不过使用-P时需要注意,基础image如果有映口映射,也会被映射,如我的Dockerfile中有FROM mysql,此时3306和33060应该都在mysql的Dockerfile中,而在我的Dockerfile中我有EXPOSE 10000,则最终docker run -P我建好的image之后,使用docker container port 容器id查看,3306,33060,10000都有被映射
 ******前台前互: -it  //后面命令用/bin/bash,这是前端交互最常见的一种做法,即docker run -it image_id /bin/bash
        *.-it其实是两个单独的命令,-i表示可以进行交互和-t表示分配一个伪终端, interactive和tty的简写, 如: docker run -it --rm --name test  top -H,试着只写-i或-t时,输入q有什么反应
        *.docker run 后面使用/bin/bash 前面参数使用-di或-dt也可以导致后台运行,现在弄不明白,-i和-t到底起什么作用.
@@ -68,4 +70,11 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
 ******查看容器运行后对文件系统做了哪些改变: docker container diff 容器名  //改变有三种类型A,C,D分别 表示文件或目录被 追加,改变,删除
 ******导出容器的文件系统: docker container export -o path/of/.tar   //简单来说就是把容器里的文件系统当前状态导出一个备份, 导出来的.tar文件一般是配合docker image import -i tar文件来使用, 特点是因为导出的只是一个文件系统,并没有带CMD,ENTRYPOINT这些,所以这种导入一般有两种用法,一是在容器里运行,不过要手动指定入口命令:"docker image imported_image_id 手动要执行的命令", 另一种就是在某个Dockerfile中的FROM引用它(FROM可以使用imageid,还可以给image打标签,使用标签),以它作为基文件系统构建新的image.
 ******查看某个/些容器的详情: docker container inspect 容器1 容器2 ...  //就是表面所描述的, 查看详情,但目前还没想到什么情况下会去查看容器的详情
-******杀死一个或多个容器: docker container kill 容器1 容器2 ...  //向pid=1的进程发送
+******杀死一个或多个容器: docker container kill 容器1[ 容器2 ...]  //默认向pid=1的进程sigkill信号, 可以使用-s指定不同的信号
+******停止一个或多个容器: docker container stop 容器1[ 容器2 ...]  //默认向pid=1的进程发送sigterm信号,一段时间后(默认10秒,可以通过-t参数更改)如果容器还没有停止再发送sigkill信号
+        *.kill和stop都能停止容器, 查了一下推荐使用stop. 其实应该学一下从0开始新建一个进程,再看看进程是怎么处理信号的, 以及每种信号的处理逻辑是什么. linux系统支持的signal都有哪些: https://man7.org/linux/man-pages/man7/signal.7.html
+******暂停容器内所有进程的执行: docker container pause 容器名
+******恢复容器内被暂停的进程: docker container unpause 容器名   //你比如说你在容器中运行一个apache服务,当你pause容器后,地址请求后会一直等待(直到超时),当unpause后,立马有响应内容回来了
+******查看容器和本地主机映口映射情况: docker container port 容器名  [容器端口[/协议]]//查看某个容器和主机全部的端口映射,以及查看容器中指定端口被映射为主机的哪个端口上,如果不加协议,则默认为tcp
+******删除所有已停止的容器: docker container prune  //删掉的数据和我想的不一样,我以为一个容器的大小至少要大于所使用的image, 但实际情况是我删了N个container才释放了几兆的空间(当然我建立容器后没有做太多的操作), 所以容器应该是差异化存储, 也就是说多个容器都是从同一个image模板启动,但在不同容器里产生的数据会单独存储.这样就导致你要删除image前,必须要将引用它的容器删掉,否则你是删不掉相应的image的,这么做也是合逻辑的.想想我将image都删掉了,相应的容器肯定就起不来了,所以在删image之前要检查有没有使用它的容器这是一个合理的逻辑.
+******给容器重新命名: docker container rename 容器 新容器名
