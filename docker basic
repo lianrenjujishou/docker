@@ -46,7 +46,7 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
 **a.怎么运行image得到容器(docker run,只讲常用的几个参数)
 ******后台运行: -d   //前提是你的CMD或docker run时指定了阻塞前端进行的命令,如tail -f /dev/null,否则加上-d也没用
 ******前台前互: -it  //后面命令用/bin/bash,这是前端交互最常见的一种做法,即docker run -it image_id /bin/bash
-       *.-it其实是两个单独的命令,-i和-t, interactive和tty的简写
+       *.-it其实是两个单独的命令,-i表示可以进行交互和-t表示分配一个伪终端, interactive和tty的简写, 如: docker run -it --rm --name test  top -H,试着只写-i或-t时,输入q有什么反应
        *.docker run 后面使用/bin/bash 前面参数使用-di或-dt也可以导致后台运行,现在弄不明白,-i和-t到底起什么作用.
 ******退出容器后自动删除建立的容器: -rm    //这个可以使用docker container ps -a看一下不加该参数退出前后有啥变化,加了该参数,退出前后有啥变化   
 ****例子:
@@ -55,5 +55,17 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
        docker run -dit image_id /bin/bash 
         *.进入后台运行的容器: docker container exec -it 容器id /bin/bash
                            docker container attach 容器id    //前提是docker run时,后面的命令是/bin/bash一类的shell,这样做我猜测attach到的是容器中最前端的那个进程,这个进程只有是shell我们才能和它交互
-        **.docker run后面的命令与CMD和ENTRYPOINT的关系:单独总结
+        **.docker run后面的命令与CMD(exec,shell,default)和ENTRYPOINT(exec,shell)的关系:单独总结,学习这块特别需要注意的就是并不是所有情况docker run后的命令都会成为入口命令,当entrypoint是shell形式时,CMD和docker run后面的命令都会被忽略的
 **b.有了容器后我们都能对它干什么
+******查看当前正在运行的容器: docker container ls  //查看所有状态的容器(不仅是运行中的,还有状态是已停止的,已创建的等): docker container ls -a
+******删除容器: docker container rm 容器名  //docker container ls -a中的所有容器都可以作为被删除的对象
+******创建容器: docker container create 选项 image_name 命令  //基本上create的用法和docker container run的用法一样, 只不过创建后没有运行而已
+******启动容器: docker container start 容器名  //docker container ls -a的容器都可以被作为启动对象, 默认启动后是后台运行的, 即使image的入口命令是前台阻塞的
+******附加到容器的当前进程: docker container attach 正在运行的容器名  //如果前端是/bin/bash这类, 可以直接得到交互式shell,如果是apachectl -D FOREGROUND这种前端阻塞的,则本地shell也就成了阻塞的了,并且此时容器中apache前端有什么输入输出错误我们都能看到
+******在容器中执行任意命令: docker container exec 正在运行的容器  //最常用的便是docker container exec -it 容器名 /bin/bash,此时可以得到一个新的可交互式会话窗口,这就比attach强太多了,attach只是将当前shell附加到容器的当前进程; 而exec可以在新会话中执行任意命令,你可以理解为exec是容器新建了个tty,我们在这个新的tty中执行命令
+******利用已有的容器创建新的image: docker container commit 已有容器 新容器tag    //docker container ls -a中的所有状态的容器都可作为基容器.场景是:当你利用imageA建立容器后,在你没有删掉该容器前,你在容器文件系统上做的改变都是有的, 但一旦你把这个容器删掉了,再利用imageA重新建一个容器, 因为imageA只是一个模板,所以之前利用imageA建的那个容器对文件系统的所有改变都没了, 如果你想要改变这些改变,则可以利用此时容器文件系统的状态,重新建立一个imageB,重新建立的imageB中的指令一般是继承了imageA的,但你在commit的时候可以通过--changes来改变CMD|ENTRYPOINT|ENV|EXPOSE|LABEL|ONBUILD|USER|VOLUME|WORKDIR这几个指令的值,当然也可以保持默认
+******和主机文件系统互传文件: docker container cp 容器名:容器文件路径|本地路径 本地路径|容器名:容器文件路径  //docker container ls -a下所有状态的容器都可作为对象
+******查看容器运行后对文件系统做了哪些改变: docker container diff 容器名  //改变有三种类型A,C,D分别 表示文件或目录被 追加,改变,删除
+******导出容器的文件系统: docker container export -o path/of/.tar   //简单来说就是把容器里的文件系统当前状态导出一个备份, 导出来的.tar文件一般是配合docker image import -i tar文件来使用, 特点是因为导出的只是一个文件系统,并没有带CMD,ENTRYPOINT这些,所以这种导入一般有两种用法,一是在容器里运行,不过要手动指定入口命令:"docker image imported_image_id 手动要执行的命令", 另一种就是在某个Dockerfile中的FROM引用它(FROM可以使用imageid,还可以给image打标签,使用标签),以它作为基文件系统构建新的image.
+******查看某个/些容器的详情: docker container inspect 容器1 容器2 ...  //就是表面所描述的, 查看详情,但目前还没想到什么情况下会去查看容器的详情
+******杀死一个或多个容器: docker container kill 容器1 容器2 ...  //向pid=1的进程发送
