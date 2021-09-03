@@ -59,22 +59,29 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
                            docker container attach 容器id    //前提是docker run时,后面的命令是/bin/bash一类的shell,这样做我猜测attach到的是容器中最前端的那个进程,这个进程只有是shell我们才能和它交互
         **.docker run后面的命令与CMD(exec,shell,default)和ENTRYPOINT(exec,shell)的关系:单独总结,学习这块特别需要注意的就是并不是所有情况docker run后的命令都会成为入口命令,当entrypoint是shell形式时,CMD和docker run后面的命令都会被忽略的
 **b.有了容器后我们都能对它干什么
-******查看当前正在运行的容器: docker container ls  //查看所有状态的容器(不仅是运行中的,还有状态是已停止的,已创建的等): docker container ls -a
-******删除容器: docker container rm 容器名  //docker container ls -a中的所有容器都可以作为被删除的对象
+******运行容器: docker container run image  //docker run就是它的简写形式 run=create+start. 这条上面已经说了,不过既然这里说的是container,而run又作为container的子命令还是写在这里
 ******创建容器: docker container create 选项 image_name 命令  //基本上create的用法和docker container run的用法一样, 只不过创建后没有运行而已
 ******启动容器: docker container start 容器名  //docker container ls -a的容器都可以被作为启动对象, 默认启动后是后台运行的, 即使image的入口命令是前台阻塞的
+******删除容器: docker container rm 容器名  //docker container ls -a中的所有容器都可以作为被删除的对象
+******查看当前正在运行的容器: docker container ls  //查看所有状态的容器(不仅是运行中的,还有状态是已停止的,已创建的等): docker container ls -a
+******和主机文件系统互传文件: docker container cp 容器名:容器文件路径|本地路径 本地路径|容器名:容器文件路径  //docker container ls -a下所有状态的容器都可作为对象
+******显示容器内正在运行的进程(非实时): docker container top 容器名
 ******附加到容器的当前进程: docker container attach 正在运行的容器名  //如果前端是/bin/bash这类, 可以直接得到交互式shell,如果是apachectl -D FOREGROUND这种前端阻塞的,则本地shell也就成了阻塞的了,并且此时容器中apache前端有什么输入输出错误我们都能看到
 ******在容器中执行任意命令: docker container exec 正在运行的容器  //最常用的便是docker container exec -it 容器名 /bin/bash,此时可以得到一个新的可交互式会话窗口,这就比attach强太多了,attach只是将当前shell附加到容器的当前进程; 而exec可以在新会话中执行任意命令,你可以理解为exec是容器新建了个tty,我们在这个新的tty中执行命令
-******利用已有的容器创建新的image: docker container commit 已有容器 新容器tag    //docker container ls -a中的所有状态的容器都可作为基容器.场景是:当你利用imageA建立容器后,在你没有删掉该容器前,你在容器文件系统上做的改变都是有的, 但一旦你把这个容器删掉了,再利用imageA重新建一个容器, 因为imageA只是一个模板,所以之前利用imageA建的那个容器对文件系统的所有改变都没了, 如果你想要改变这些改变,则可以利用此时容器文件系统的状态,重新建立一个imageB,重新建立的imageB中的指令一般是继承了imageA的,但你在commit的时候可以通过--changes来改变CMD|ENTRYPOINT|ENV|EXPOSE|LABEL|ONBUILD|USER|VOLUME|WORKDIR这几个指令的值,当然也可以保持默认
-******和主机文件系统互传文件: docker container cp 容器名:容器文件路径|本地路径 本地路径|容器名:容器文件路径  //docker container ls -a下所有状态的容器都可作为对象
-******查看容器运行后对文件系统做了哪些改变: docker container diff 容器名  //改变有三种类型A,C,D分别 表示文件或目录被 追加,改变,删除
-******导出容器的文件系统: docker container export -o path/of/.tar   //简单来说就是把容器里的文件系统当前状态导出一个备份, 导出来的.tar文件一般是配合docker image import -i tar文件来使用, 特点是因为导出的只是一个文件系统,并没有带CMD,ENTRYPOINT这些,所以这种导入一般有两种用法,一是在容器里运行,不过要手动指定入口命令:"docker image imported_image_id 手动要执行的命令", 另一种就是在某个Dockerfile中的FROM引用它(FROM可以使用imageid,还可以给image打标签,使用标签),以它作为基文件系统构建新的image.
-******查看某个/些容器的详情: docker container inspect 容器1 容器2 ...  //就是表面所描述的, 查看详情,但目前还没想到什么情况下会去查看容器的详情
+******实时显示容器内部的资源使用情况: docker container stats 容器名  //cpu占用率,内存占用,网络io等
 ******杀死一个或多个容器: docker container kill 容器1[ 容器2 ...]  //默认向pid=1的进程sigkill信号, 可以使用-s指定不同的信号
 ******停止一个或多个容器: docker container stop 容器1[ 容器2 ...]  //默认向pid=1的进程发送sigterm信号,一段时间后(默认10秒,可以通过-t参数更改)如果容器还没有停止再发送sigkill信号
         *.kill和stop都能停止容器, 查了一下推荐使用stop. 其实应该学一下从0开始新建一个进程,再看看进程是怎么处理信号的, 以及每种信号的处理逻辑是什么. linux系统支持的signal都有哪些: https://man7.org/linux/man-pages/man7/signal.7.html
+******重启容器: docker container restart 容器名  //应该就是先stop,再start,需要注意的是在stop时,先发sigterm,然后默认有10秒的等待时间,如果这10秒内容器没关闭, 再发送sigkill,这个等待时间同stop一样可以通过-t参数控制,即,docker container restart -t 20 容器名
 ******暂停容器内所有进程的执行: docker container pause 容器名
 ******恢复容器内被暂停的进程: docker container unpause 容器名   //你比如说你在容器中运行一个apache服务,当你pause容器后,地址请求后会一直等待(直到超时),当unpause后,立马有响应内容回来了
-******查看容器和本地主机映口映射情况: docker container port 容器名  [容器端口[/协议]]//查看某个容器和主机全部的端口映射,以及查看容器中指定端口被映射为主机的哪个端口上,如果不加协议,则默认为tcp
-******删除所有已停止的容器: docker container prune  //删掉的数据和我想的不一样,我以为一个容器的大小至少要大于所使用的image, 但实际情况是我删了N个container才释放了几兆的空间(当然我建立容器后没有做太多的操作), 所以容器应该是差异化存储, 也就是说多个容器都是从同一个image模板启动,但在不同容器里产生的数据会单独存储.这样就导致你要删除image前,必须要将引用它的容器删掉,否则你是删不掉相应的image的,这么做也是合逻辑的.想想我将image都删掉了,相应的容器肯定就起不来了,所以在删image之前要检查有没有使用它的容器这是一个合理的逻辑.
 ******给容器重新命名: docker container rename 容器 新容器名
+******删除所有已停止的容器: docker container prune  //删掉的数据和我想的不一样,我以为一个容器的大小至少要大于所使用的image, 但实际情况是我删了N个container才释放了几兆的空间(当然我建立容器后没有做太多的操作), 所以容器应该是差异化存储, 也就是说多个容器都是从同一个image模板启动,但在不同容器里产生的数据会单独存储.这样就导致你要删除image前,必须要将引用它的容器删掉,否则你是删不掉相应的image的,这么做也是合逻辑的.想想我将image都删掉了,相应的容器肯定就起不来了,所以在删image之前要检查有没有使用它的容器这是一个合理的逻辑.
+******查看容器和本地主机映口映射情况: docker container port 容器名  [容器端口[/协议]]//查看某个容器和主机全部的端口映射,以及查看容器中指定端口被映射为主机的哪个端口上,如果不加协议,则默认为tcp
+******查看某个/些容器的详情: docker container inspect 容器1 容器2 ...  //就是表面所描述的, 查看详情,但目前还没想到什么情况下会去查看容器的详情(下面讲的docker container update中就可以用到inspect命令,看看要设置容器当前的各项资源参数都是多少)
+******利用已有的容器创建新的image: docker container commit 已有容器 新容器tag    //docker container ls -a中的所有状态的容器都可作为基容器.场景是:当你利用imageA建立容器后,在你没有删掉该容器前,你在容器文件系统上做的改变都是有的, 但一旦你把这个容器删掉了,再利用imageA重新建一个容器, 因为imageA只是一个模板,所以之前利用imageA建的那个容器对文件系统的所有改变都没了, 如果你想要改变这些改变,则可以利用此时容器文件系统的状态,重新建立一个imageB,重新建立的imageB中的指令一般是继承了imageA的,但你在commit的时候可以通过--changes来改变CMD|ENTRYPOINT|ENV|EXPOSE|LABEL|ONBUILD|USER|VOLUME|WORKDIR这几个指令的值,当然也可以保持默认
+******查看容器运行后对文件系统做了哪些改变: docker container diff 容器名  //改变有三种类型A,C,D分别 表示文件或目录被 追加,改变,删除
+******导出容器的文件系统: docker container export -o path/of/.tar   //简单来说就是把容器里的文件系统当前状态导出一个备份, 导出来的.tar文件一般是配合docker image import -i tar文件来使用, 特点是因为导出的只是一个文件系统,并没有带CMD,ENTRYPOINT这些,所以这种导入一般有两种用法,一是在容器里运行,不过要手动指定入口命令:"docker image imported_image_id 手动要执行的命令", 另一种就是在某个Dockerfile中的FROM引用它(FROM可以使用imageid,还可以给image打标签,使用标签),以它作为基文件系统构建新的image.
+******更新容器资源情况: docker container update 选项 选项值 容器名  //如cpu,内存等资源的设置
+******当容器结束时返回容器的退出状态码: docker container wait 容器名  //命令执行时是阻塞的,直到等待的容器退出
+******显示容器内的运行日志: docker container logs 选项 容器名  //这个还没好好看,现在没心思看
