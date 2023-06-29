@@ -42,7 +42,7 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
 ******从tar文件导入文件系统image:docker image import x.tar  //这个tar文件可以是docker image save -o x.tar保存的, 也可以是docker container export x.tar
         *.需要注意的是import和export是一对, save和load是一对,但只有export的作用对象为container, import,save,load的作用对象都为image. 在用法上, save保存的就是你指定的image,在load后,你之前怎么用image创建container现在还怎么用; 而export和import的操作动作虽然是container,但实际上导出的是你指定container的当前状态的文件系统, 关键是你使用import后,import的是image而非container. 并且导入的这个image还是没有可执行命令的(https://pspdfkit.com/blog/2019/docker-import-export-vs-load-save/),所以如果想要使用import进来的image创建container,必须要指定一个执行命令. import进来的image的一种使用场景就是当你构建新的image时,将该image作为BaseImage(即放在FROM指令后)
         *.至于用处,想到的一种情景是你构建好的imageA中已经将某个任务的环境构建好了,如python环境, 这样当你把imageA的文件系统导进来后,使用docker image tag给该image打个标签,然后再新建Dockerfile,此时该Dockerfile的FROM就是刚刚打的标签,下面直接就可以使用RUN指令执行python脚本了.
-        *.对比docker container commit container_id new_image_tag 它根据当前正在运行的容器contain_id,创建一个新的image,特点就是不光保存了文件系统的改变,Dockerfile指令内容也没变(https://docs.docker.com/engine/reference/commandline/commit/ 还可以通过使用--change选项改变新image的一些Dockerfile指令,详见链接),如,ENTRANCE,CMD(基image运行时未在命令行自定义要执行的命令时,则根据基image得到的container创建的image中CMD指令和基image中的一致, 但如果基image运行时在命令行自定义了要运行的命令,则新产生的image中CMD命令的值就非基image中Dockerfile中定义的那个了,而是基image在运行时自定义的那个命令. 这个测试可以让基image的Dockerfile的CMD值为tail -f /dev/null,然后build得到image后,执行docker run 基image sleep 20,此处注意我是在docker run时指定的入口命令,会覆盖掉Dockerfile中的CMD,此时快速打开第二个窗口执行docker container commit 基image容器id new_tag,最后运行这个新产生的image,看看等20秒是否会自动退出,如果会退出,则说明新产生的image中CMD使用的是运行基image时现定义的那个,而非基image的Dockerfile中CMD的默认值 )
+        *.对比docker container commit container_id new_image_tag 它根据已创建容器contain_id,创建一个新的image,特点就是不光保存了文件系统的改变,Dockerfile指令内容也没变(https://docs.docker.com/engine/reference/commandline/commit/ 还可以通过使用--change选项改变新image的一些Dockerfile指令,详见链接),如,ENTRANCE,CMD(基image运行时未在命令行自定义要执行的命令时,则根据基image得到的container创建的image中CMD指令和基image中的一致, 但如果基image运行时在命令行自定义了要运行的命令,则新产生的image中CMD命令的值就非基image中Dockerfile中定义的那个了,而是基image在运行时自定义的那个命令. 这个测试可以让基image的Dockerfile的CMD值为tail -f /dev/null,然后build得到image后,执行docker run 基image sleep 20,此处注意我是在docker run时指定的入口命令,会覆盖掉Dockerfile中的CMD,此时打开第二个窗口执行docker container commit 基image容器id new_tag,最后运行这个新产生的image,看看等20秒是否会自动退出,如果会退出,则说明新产生的image中CMD使用的是运行基image时现定义的那个,而非基image的Dockerfile中CMD的默认值 )  //之前认为commit必须是根据正在运行的container,其实不是, 只要是已创建的就行, 运不运行的都无所谓
 =====
 第二阶段,根据image运行得到容器
 **a.怎么运行image得到容器(docker run,只讲常用的几个参数)
@@ -56,9 +56,9 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
        docker run -it image_id /bin/bash     //可以直接在当前tty中操作docker容器, exit退出
        docker run -d image_id tail -f /dev/null   //后台运行容器,因为有tail在这一直阻塞着进程,所以容器一直处于运行中,cnblogs中也说过,容器说白了就是一个进程, 你没有阻塞进程的语句,它执行完就退出了是完全正常的逻辑
        docker run -dit image_id /bin/bash 
-        *.进入后台运行的容器: docker container exec -it 容器id /bin/bash
+        *.进入后台运行的容器: docker container exec -it 容器id /bin/bash  //这种情况解决了前台运行的是非shell进程,它直接在容器中执行命令,如本例就是在容器中执行/bin/bash并和它交互
                            docker container attach 容器id    //前提是docker run时,后面的命令是/bin/bash一类的shell,这样做我猜测attach到的是容器中最前端的那个进程,这个进程只有是shell我们才能和它交互
-        **.docker run后面的命令与CMD(exec,shell,default)和ENTRYPOINT(exec,shell)的关系:单独总结,学习这块特别需要注意的就是并不是所有情况docker run后的命令都会成为入口命令,当entrypoint是shell形式时,CMD和docker run后面的命令都会被忽略的
+        **.docker run后面的命令与CMD(exec,shell,default)和ENTRYPOINT(exec,shell)的关系:单独总结,学习这块特别需要注意的就是并不是所有情况docker run后的命令都会成为入口命令,当entrypoint是shell形式时,CMD和docker run后面的命令都会被忽略的,关于这点在cnblogs中自己有总结(https://www.cnblogs.com/lianrenjujishou/p/15243830.html).
 **b.有了容器后我们都能对它干什么
 ******运行容器: docker container run image  //docker run就是它的简写形式 run=create+start. 这条上面已经说了,不过既然这里说的是container,而run又作为container的子命令还是写在这里
 ******创建容器: docker container create 选项 image_name 命令  //基本上create的用法和docker container run的用法一样, 只不过创建后没有运行而已
