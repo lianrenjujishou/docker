@@ -20,6 +20,7 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
 ****例子:
     docker build .   //此时Dockerfile从当前目录取, image's tag为随机串(sha256)
     docker build -t repo1/hello:1.0 .  //这种应该是最常用的了, 即最通常的思维是以当前目录为上下文目录,并且将Dockerfile文件也放在这里, 最后给生成的image命个名
+    docker build -t repo2/who:1.1 -f /Dockerfile /tmp/x  //这种情况就是使用/Dockerfile作为构建文件, 然后将/tmp/x目录作为上下文目录
     *.其它的例子就不写了,自己排列组合即可,写多也乱.
 **b.得到了image后你能做什么(即docker image后都可以有什么动作,当然动作也可以有参数):
 ******查看我当前都有哪些images: docker image ls
