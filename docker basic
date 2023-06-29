@@ -30,7 +30,7 @@ docker命令分为两种,一种是Management命令,一种是Action命令, 管理
 ******将某个/些image[s]打包并存储到本地: docker image save -o saved_image.tar image1[ image2...]
 ******与存储到本地相对应的从本地加载: docker image load -i saved_image.tar  //需要注意直接加载后往往在docker image ls中看不到,此时可以使用docker image ls -a看到, 如果想从docker image ls中看到的话,需要使用docker tag给该image打个标签
 ******给image打标签: docker image tag 源id 标签名  //说是标签名,但docker image ls看到的相应列标题为REPOSITORY,这一点感觉对初学者非常不友好,也就是说对-t repo/name:version, repo/name会理解为image名称,version理解为版本号,但到了docker image ls中名词解释全变了,repo/name为REPOSITORY值,而version为TAG列的值. 这里我写成repo/name在pull和push的时候是有影响的,此时repo/name会被认为是repo目录下的name.如果我docker image push bbq:latest,则推送的完整地址是:docker.io/library/bbq,如果我docker image push XYZ/bbq:later,则推送的完整地址是: docker.io/XYZ/bbq. 在推送的时候你才能理解为啥docker image ls时会将-t XYZ/abc:latest中的XYZ/abc的表头写为REPOSITORY.从输出情况看,如果只是abc这种形式,默认是在library下,即library/abc
-        *.如果是已经有标签名的,你还可以给该image一个新别名,此时docker image ls中会多出一条记录  //如docker image XYZ/abc:latest bbq:first
+        *.如果是已经有标签名的,你还可以给该image一个新别名,此时docker image ls中会多出一条记录  //如docker image tag XYZ/abc:latest bbq:first
 ******从远程库拉取image: docker image pull tag_name[:version]  //tag_name有两种写法, abc,此时从默认的library/目录下找,XYZ/abc,此时从XYZ目录下找
 ******向远程库推送image: docker image push tag_name[:version]  //不加:version则默认为:latest
         *.远程推送要注意,1.要先登录:docker login -u username,执行后会让你输密码,如果密码对,提示登录成功, 假设我的用户名为shenhuxi;
